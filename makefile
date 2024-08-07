@@ -1,7 +1,7 @@
 src_files	:= $(wildcard ./src/*.asm)
 src_names	:= $(patsubst ./src/%.asm, %, $(src_files))
 targ_objs	:= $(patsubst %, ./target/%.o, $(src_names))
-std			:= $(patsubst %, ../std/target/%, $(shell ls ../std/target | grep "\.o" | grep -v "main\.o"))
+std			:= $(wildcard ./std/*.o)
 libs		:= $(patsubst %, ../%/target/%.o, $(shell cat ./libs))
 
 w	:= $(shell tput cols)
