@@ -21,6 +21,7 @@
 	%1_specular:	dd %8
 	%1_shininess:	dd %9
 %endmacro
+%define sphere_size 0x20 ; spheres are 32 bytes
 
 section .data
 	stringln helloWorld, "Hello, world!"
