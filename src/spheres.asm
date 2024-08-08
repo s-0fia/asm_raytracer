@@ -2,6 +2,7 @@
 %define sphere_size 0x20 ; spheres are 32 bytes
 
 section .data
+	achar: db "d",
 	; sphere_intersection vars
 	b: dd 2.0,
 	c: dd 0.0,
@@ -11,20 +12,20 @@ section .data
 	temp: dd 0.0,
 	; nearest_intersected_obj vars
 	min_distance: dd 0.0,
-	md_is_none: db 0,
+	md_is_none: dd 0,
 	curr_obj: dd 0,
 	end_objs: dd 0,
 	closest_obj: dd 0,
 
 section .text
-	global _sphere_intersection
+	global _sphere_intersection, _nearest_intersected_obj
 	extern _dot, _norm, _vec_sub	; vectors
 
 ; stack: (restored on output)
 ;(+0x00) *ret_location
 ; +0x04 *center
 ; +0x08 *radius
-; +0x0B *ray_origin
+; +0x0C *ray_origin
 ; +0x10 *ray_direction
 ; ecx out: float *distance
 ; edx out: is_none
@@ -38,23 +39,18 @@ _sphere_intersection:
 	mov ecx, __float32__(-4.0)
 	mov [delta], ecx
 	; calculating b
-	mov ecx, esp
-	add ecx, 0xB
-	mov edx, esp
-	add edx, 0x8
+	mov ecx, [esp + 0xC]
+	mov edx, [esp + 0x4]
 	call _vec_sub
-	mov edx, esp
-	add edx, 0x10
+	mov edx, [esp + 0x10]
 	call _dot
 	fld dword [ecx]
 	fld dword [b]
 	fmulp
 	fstp dword [b]
 	; calculating c
-	mov ecx, esp
-	add ecx, 0xB
-	mov edx, esp
-	add edx, 0x8
+	mov ecx, [esp + 0xC]
+	mov edx, [esp + 0x4]
 	call _vec_sub
 	call _norm
 	fld dword [ecx]
@@ -79,14 +75,20 @@ _sphere_intersection:
 	faddp
 	fst dword [delta]
 	fldz
-	fcomp
+	fcompp ; 0 vs delta
 	fnstsw ax
 	sahf
 	jp _si_is_nan
-	ja _si_greater_than
+	jb _si_greater_than ; 0 < delta
 	jmp _si_less_than
 	; delta > 0
 _si_greater_than:
+	mov eax, 0x4
+	mov ebx, 0x1
+	mov ecx, achar
+	mov edx, 0x1
+	syscall
+	fld dword [delta]
 	fsqrt
 	fstp dword [delta] ; delta = sqrt(delta)
 	fldz
@@ -105,27 +107,27 @@ _si_greater_than:
 	fsubp ; -b - delta
 	fld dword [temp]
 	fdivp
-	fst dword [t2] ; t1 = (-b + sqrt(delta)) / 2
-	fldz ; t2 > 0 ?
-	fcompp
-	fnstsw ax
-	sahf
-	jp _si_is_nan
-	jbe _si_less_than
-	fld dword [t1] ; t1 > 0 ?
 	fldz
-	fcompp
+	fst dword [t2] ; t1 = (-b + sqrt(delta)) / 2
+	fcompp ; t2 > 0 ?
 	fnstsw ax
 	sahf
 	jp _si_is_nan
 	jbe _si_less_than
-	fld dword [t1] ; t1 > t2 ?
-	fld dword [t2]
-	fcompp
+	fldz
+	fld dword [t1]
+	fcompp ; t1 > 0 ?
 	fnstsw ax
 	sahf
 	jp _si_is_nan
-	jb _si_ret_t1
+	jbe _si_less_than
+	fld dword [t1]
+	fld dword [t2]
+	fcompp ; t2 vs t1 ?
+	fnstsw ax
+	sahf
+	jp _si_is_nan
+	ja _si_ret_t1
 _si_ret_t2:
 	mov ecx, t2
 	xor edx, edx
@@ -153,7 +155,7 @@ _si_func_end:
 ;(+0x00) *ret_location
 ; +0x04 *objs
 ; +0x08 num_of_objs
-; +0x0B *ray_origin
+; +0x0C *ray_origin
 ; +0x10 *ray_direction
 ; eax out: is_none
 ; ecx out: float *min_distance (&min_disance)
@@ -170,65 +172,60 @@ _nearest_intersected_obj:
 	xor edx, edx
 	mul ebx
 	mov ecx, [esp + 0x4] ; ecx *start
-	mov ebx, ecx
-	add eax, ebx
-	mov [curr_obj], ecx
-	mov [end_objs], edx
-_for_objs:
+	add eax, ecx
+	mov [curr_obj], ecx ; *start
+	mov [end_objs], eax ; *end
+_nio_for_objs:
 	mov ecx, [curr_obj]
 	mov edx, [end_objs]
 	cmp ecx, edx
-	jge _for_done ; if *start >= *end
-	mov eax, esp
-	mov ebx, 0x10
-	add eax, ebx
-	push ebx ; *ray_direction
-	mov eax, esp
-	add eax, ebx
-	push ebx ; *ray_origin
-	mov eax, ecx
-	mov ebx, 0xB
+	jae _nio_for_done ; if *start >= *end
+	push dword [esp + 0x10] ; *ray_direction
+	push dword [esp + 0x10] ; *ray_origin
+	mov eax, [curr_obj]
+	mov ecx, eax
+	mov ebx, 0xC
 	add eax, ebx
 	push eax ; *radius
 	push ecx ; *center
 	call _sphere_intersection
 	; ecx: float *distance
 	; flags: eq=IS_NONE
-	jne _distance_is_some
-_distance_is_none:
-	jmp _for_continue
-_distance_is_some:
+	jne _nio_distance_is_some
+_nio_distance_is_none:
+	jmp _nio_for_continue
+_nio_distance_is_some:
 	mov eax, [md_is_none]
 	cmp eax, 0x1
-	je _set_dist_and_obj
+	je _nio_set_dist_and_obj
 	fld dword [min_distance]
 	fld dword [ecx]
-	fcompp
+	fcompp ; distance vs min_distance
 	fnstsw ax
 	sahf
-	jp _for_continue ; is NaN
-	ja _set_dist_and_obj
-	jmp _for_continue
-_set_dist_and_obj:
+	jp _nio_for_continue ; is NaN
+	jb _nio_set_dist_and_obj
+	jmp _nio_for_continue
+_nio_set_dist_and_obj:
 	fld dword [ecx] ; load distance
 	fstp dword [min_distance] ; put to md
-	mov al, 0x0
-	mov [md_is_none], al
+	mov eax, 0x0
+	mov [md_is_none], eax
 	mov eax, [curr_obj]
 	mov [closest_obj], eax
-_for_continue:
+_nio_for_continue:
 	mov ecx, [curr_obj]
 	mov ebx, sphere_size
 	add ecx, ebx
 	mov [curr_obj], ecx
-	jmp _for_objs
-_for_done:
+	jmp _nio_for_objs
+_nio_for_done:
 	pop ecx
 	pop edx
 	pop edx
 	pop edx
 	pop edx
-	push eax
+	push ecx
 	mov eax, [md_is_none]
 	cmp eax, 0x1
 	mov ecx, min_distance
