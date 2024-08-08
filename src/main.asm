@@ -25,8 +25,17 @@
 
 section .data
 	stringln helloWorld, "Hello, world!"
-	width: dd 75
-	height: dd 70
+	string brightness, " .:-=+*#%@"
+	num_of_spheres: db 0x2,
+				   ; x    y    z   rad   amb  dif  spc  shi
+	sphere spheres,-0.2, 0.0,-1.0, 0.7,  0.1, 0.7, 1.0, 100.0
+				   ; x    y    z   rad   amb  dif  spc  shi
+	sphere sphere1, 0.0, 9.e3,0.0,8999.3,0.1, 0.6, 1.0, 100.0
+				   ; x    y    z   rad   amb  dif  spc  shi
+	sphere light,   5.0, 5.0, 5.0, 0.0,  1.0,1.0, 1.0, 0.0
+	camera: dd 0.0, 0.0, 1.0
+	width: db 75,
+	height: db 70,
 	v1: dd 1.0, 2.0, 3.0
 	v2: dd 3.0, 2.0, 1.0
 	rad: dd 0.7,
