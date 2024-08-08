@@ -22,6 +22,7 @@
 	%1_shininess:	dd %9
 %endmacro
 %define sphere_size 0x20 ; spheres are 32 bytes
+%define new_vec3 dd 0.0, 0.0, 0.0
 
 section .data
 	stringln helloWorld, "Hello, world!"
@@ -33,12 +34,26 @@ section .data
 	sphere sphere1, 0.0, 9.e3,0.0,8999.3,0.1, 0.6, 1.0, 100.0
 				   ; x    y    z   rad   amb  dif  spc  shi
 	sphere light,   5.0, 5.0, 5.0, 0.0,  1.0,1.0, 1.0, 0.0
-	camera: dd 0.0, 0.0, 1.0
+	camera: new_vec3
 	width: db 75,
 	height: db 70,
-	v1: dd 1.0, 2.0, 3.0
-	v2: dd 3.0, 2.0, 1.0
-	rad: dd 0.7,
+	ratio: dd 0.0,
+	x: dd 0.0,
+	x_step: dd 0.0,
+	y: dd 0.0,
+	y_step: dd 0.0,
+	colour: dd 0.0,
+	closest_obj: dd 0,
+	min_distance: dd 0,
+	pixel: new_vec3
+	dir: new_vec3
+	intersection: new_vec3
+	surface_normal: new_vec3
+	shifted_point: new_vec3
+	intersection_to_light: new_vec3
+	light_distance: dd 0.0
+	intersection_to_camera: new_vec3
+	h: new_vec3
 
 section .text
 	global _start
@@ -47,8 +62,7 @@ section .text
 	extern _sphere_intersection							; spheres
 
 _start:
-	jmp _end
-	pop ecx ; ETX
+	pop ecx ; ETX char
 	pop ecx ; path
 	pop ecx ; width or null
 	cmp ecx, 0x0
@@ -95,11 +109,11 @@ _end:
 ; +0x08 *radius
 ; +0x0B *ray_origin
 ; +0x10 *ray_direction
-	push v1
-	push v2
-	push rad
-	push v1
-	call _sphere_intersection
+	; push v1
+	; push v2
+	; push rad
+	; push v1
+	; call _sphere_intersection
 	mov eax, 1		; Exit
 	mov ebx, 0		; With no error
 	syscall
